@@ -55,6 +55,7 @@ public class Main {
 				System.exit(1);
 			} catch (IOException e) {
 				System.out.println("I/O error occurred, killing program...");
+				System.out.println(e.getMessage());
 				System.exit(1);
 			}
 			

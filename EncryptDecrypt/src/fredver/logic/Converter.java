@@ -76,7 +76,7 @@ public class Converter {
 				reader.close();
 				throw new NoMetadataException();
 			}
-			read += (char)check;
+			read += (char)check; 
 			if(read.contains(Constants.metadataSeparator)) {
 				StringBuilder temp = new StringBuilder(read);
 				temp.delete(read.length() - Constants.metadataSeparator.length(), read.length());
