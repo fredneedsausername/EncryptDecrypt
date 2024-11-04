@@ -1,9 +1,11 @@
 package fredver.main;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
+import java.util.concurrent.CompletableFuture;
 
 import fredver.util.FailedToCreateDirectoryException;
 import fredver.logic.Converter;
@@ -28,42 +30,24 @@ public class Main {
 			System.out.println("2: Decrypt file or all files in a directory");
 			
 			String answer = scanner.nextLine();
-			try {
-				switch(answer.charAt(0)) {
-				case '0':
-					System.exit(0);
-				case '1': 
-					encryptFiles();
-					break;
-				case '2':
-					try {
-						decryptFiles();
-					} catch (NoMetadataException e) {
-						System.out.println("A file does not have metadata");
-						System.out.println("Are you sure it was a file encrypted with this program?");
-						System.out.println("Anyways, you cannot recover it in this state");
-						System.out.println("I'm sorry, but if you had wanted a reliable encryptor you wouldn't have");
-						System.out.println("gotten it from a random teenager");
-					}
-					break;
-					
-				default:
-					continue;
-				}
-			} catch (FailedToCreateDirectoryException e) {
-				System.out.println("Could not create a directory, killing program...");
-				System.exit(1);
-			} catch (IOException e) {
-				System.out.println("I/O error occurred, killing program...");
-				System.out.println(e.getMessage());
-				System.exit(1);
+			switch(answer.charAt(0)) {
+			case '0':
+				System.exit(0);
+			case '1': 
+				encryptFiles();
+				break;
+			case '2':
+				decryptFiles();
+				break;
+			default:
+				continue;
 			}
 			
 		}
 		
 	}
 	
-	private static void encryptFiles() throws FailedToCreateDirectoryException, IOException {
+	private static void encryptFiles() {
 		
 		@SuppressWarnings("resource") // used for terminal input
 		Scanner scanner = new Scanner(System.in);
@@ -102,10 +86,27 @@ public class Main {
 					destinationFolder.mkdirs();
 				}
 				System.out.println("Encrypting files...");
+				
+				
+				
 				File[] arrayToBeEncrypted = toBeEncrypted.listFiles(file -> file.isFile());
+				if(arrayToBeEncrypted == null) handleExceptions(new IOException("I/O Exception while listing files"));
+				List<CompletableFuture<Void>> processes = new ArrayList<>();
+				
 				for(File f : arrayToBeEncrypted) {
-					Converter.encrypt(f, destinationFolder, f.getName());
+					
+					CompletableFuture<Void> current = CompletableFuture.runAsync( () -> {
+						try {
+							Converter.encrypt(f, destinationFolder, f.getName());
+						} catch (IOException | FailedToCreateDirectoryException e) {
+							throw new RuntimeException(e);
+						}
+					}).exceptionally(Main::handleExceptions);
+					processes.add(current);
 				}
+				
+				CompletableFuture.allOf(processes.toArray(new CompletableFuture[processes.size()])).join();
+				
 				System.out.println("Encrypted!");
 				continue;
 				
@@ -129,7 +130,10 @@ public class Main {
 					destinationFolder.mkdirs();
 				}
 				System.out.println("Encrypting file...");
-				Converter.encrypt(toBeEncrypted, destinationFolder, toBeEncrypted.getName());
+				try {
+					Converter.encrypt(toBeEncrypted, destinationFolder, toBeEncrypted.getName());
+				} catch (IOException | FailedToCreateDirectoryException e) { handleExceptions(e);}
+				
 				System.out.println("Encrypted!");
 			}
 		}
@@ -138,7 +142,7 @@ public class Main {
 		
 	}
 	
-	private static void decryptFiles() throws FileNotFoundException, FailedToCreateDirectoryException, NoMetadataException, IOException {
+	private static void decryptFiles() {
 		
 		@SuppressWarnings("resource") // used for terminal input
 		Scanner scanner = new Scanner(System.in);
@@ -178,9 +182,20 @@ public class Main {
 				}
 				System.out.println("Decrypting files...");
 				File[] arrayToBeDecrypted = toBeDecrypted.listFiles(file -> file.isFile());
+				if(arrayToBeDecrypted == null) handleExceptions(new IOException("I/O Exception while listing files"));
+				List<CompletableFuture<Void>> processes = new ArrayList<>();
+				
 				for(File f : arrayToBeDecrypted) {
-					Converter.decrypt(f, destinationFolder);
+					CompletableFuture<Void> current = CompletableFuture.runAsync( () -> {
+						try {
+							Converter.decrypt(f, destinationFolder);
+						} catch (IOException | FailedToCreateDirectoryException | NoMetadataException e ) {
+							throw new RuntimeException(e);
+						}
+					}).exceptionally(Main::handleExceptions);
+					processes.add(current);
 				}
+				CompletableFuture.allOf(processes.toArray(new CompletableFuture[processes.size()])).join();
 				System.out.println("Decrypted!");
 				continue;
 				
@@ -204,7 +219,11 @@ public class Main {
 					destinationFolder.mkdirs();
 				}
 				System.out.println("Decrypting file...");
-				Converter.decrypt(toBeDecrypted, destinationFolder);
+				try {
+					Converter.decrypt(toBeDecrypted, destinationFolder);
+				} catch (FailedToCreateDirectoryException | NoMetadataException | IOException e) {
+					handleExceptions(e);
+				}
 				System.out.println("Decrypted!");
 			}
 		}
@@ -213,4 +232,11 @@ public class Main {
 		
 	}
 	
+	private static Void handleExceptions(Throwable ex) {
+		if(ex instanceof IOException) {
+			System.out.println("I/O Exception");
+		}
+		System.out.println(ex.getMessage());
+		return null;
+	}
 }

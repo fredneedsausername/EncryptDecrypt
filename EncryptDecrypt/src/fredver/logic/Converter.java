@@ -1,7 +1,7 @@
 package fredver.logic;
 
+import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -17,7 +17,7 @@ public class Converter {
 				
 		if(!destination.exists()) {
 			boolean res = destination.mkdirs();
-			if(!res) throw new FailedToCreateDirectoryException();
+			if(!res) throw new FailedToCreateDirectoryException(destination);
 		}
 		
 		String metadata = readMetadata(decryptee);
@@ -66,7 +66,7 @@ public class Converter {
 	
 	protected static String readMetadata(File input) throws NoMetadataException, IOException {
 		
-		FileInputStream reader = new FileInputStream(input);
+		BufferedReader reader = new BufferedReader(new java.io.FileReader(input));
 		
 		String read = new String();
 		
@@ -74,7 +74,7 @@ public class Converter {
 			int check = reader.read();
 			if(check == -1) {
 				reader.close();
-				throw new NoMetadataException();
+				throw new NoMetadataException(input);
 			}
 			read += (char)check; 
 			if(read.contains(Constants.metadataSeparator)) {
@@ -86,7 +86,7 @@ public class Converter {
 			}
 		}
 		reader.close();
-		throw new NoMetadataException();
+		throw new NoMetadataException(input);
 	}
 	
 	protected static void writeMetadata(File metadataProvider, FileOutputStream writer) throws IOException {
